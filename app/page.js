@@ -1,7 +1,7 @@
 "use client"
 import React, { useState, useEffect } from 'react';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
+import { DatePicker, Form } from 'antd';
+import moment from 'moment';
 
 const SearchPage = () => {
   const [posts, setPosts] = useState([]);
@@ -10,23 +10,25 @@ const SearchPage = () => {
   const [filters, setFilters] = useState({
     category: '',
     subCategory: '',
-    startDate: null,
-    endDate: null,
+    dateRange: [],
     maxGuests: '',
   });
+  const [noMatch, setNoMatch] = useState(false);
 
   useEffect(() => {
     fetchPosts();
-  }, [filters]); 
+  }, [filters]);
 
   const fetchPosts = async () => {
     try {
-      const response = await fetch(`/api/getdata?${getQueryParams(filters)}`);
+      const queryParams = new URLSearchParams(filters);
+      const response = await fetch(`/api/getdata?${queryParams.toString()}`);
       const data = await response.json();
       setPosts(data);
+      setNoMatch(data.length === 0);
     } catch (error) {
       console.error('Error fetching posts:', error);
-    
+      setNoMatch(true);
     }
   };
 
@@ -40,26 +42,11 @@ const SearchPage = () => {
     setSubCategories(fakeSubCategories[selectedCategory] || []);
   };
 
-  const filterPosts = () => {
-    const filteredPosts = posts.filter((post) => {
-      return (
-        (!filters.category || post.category === filters.category) &&
-        (!filters.subCategory || post.subCategory === filters.subCategory) &&
-        (!filters.startDate || (post.startDate >= filters.startDate && post.startDate <= filters.endDate)) &&
-        (!filters.maxGuests || post.maxGuests <= filters.maxGuests)
-      );
-    });
-
-    setPosts(filteredPosts);
-  };
-
   const handleFilterChange = (field, value) => {
     if (field === 'startDate' || field === 'endDate') {
-      // Check if the selected date is valid
       const isValidDate = value instanceof Date && !isNaN(value.getTime());
 
       if (!isValidDate) {
-        // Handle invalid date input (e.g., clear the date)
         value = null;
       }
     }
@@ -69,34 +56,23 @@ const SearchPage = () => {
     if (field === 'category') {
       fetchSubCategories(value);
     }
-
-    // Trigger post filtering on each filter change
-    filterPosts();
   };
 
   const clearFilters = () => {
     setFilters({
       category: '',
       subCategory: '',
-      startDate: null,
-      endDate: null,
+      dateRange: [],
       maxGuests: '',
     });
     setSubCategories([]);
-    fetchPosts();
-  };
-
-  const getQueryParams = (params) => {
-    return Object.keys(params)
-      .filter((key) => params[key] !== '')
-      .map((key) => `${key}=${encodeURIComponent(params[key])}`)
-      .join('&');
+    setNoMatch(false);
   };
 
   return (
     <div className="container mx-auto p-4">
-      <div className='flex flex-col justify-center items-center'>
-        <div className='flex justify-center gap-4'>
+      <div className="flex flex-col justify-center items-center">
+        <div className="flex justify-center gap-4">
           <select
             className="border p-2 border-orange-400 rounded-lg w-48 h-12"
             onChange={(e) => handleFilterChange('category', e.target.value)}
@@ -122,15 +98,13 @@ const SearchPage = () => {
             ))}
           </select>
           <div className="w-48">
-            <DatePicker
-              selected={filters.startDate}
-              onChange={(date) => handleFilterChange('startDate', date)}
-              startDate={filters.startDate}
-              endDate={filters.endDate}
-              selectsRange
-              isClearable
-              placeholderText="Start Date - End Date"
-              className="border p-2 border-orange-400 rounded-lg w-full h-12"
+            <DatePicker.RangePicker
+              format="MMM Do, YYYY"
+              value={filters.dateRange}
+              separator="-"
+              onChange={(dates) => handleFilterChange('dateRange', dates)}
+              allowClear={false}
+              className="border p-2 border-orange-400 rounded-lg w-48 h-12"
             />
           </div>
           <input
@@ -147,16 +121,21 @@ const SearchPage = () => {
         >
           Clear
         </button>
+        {noMatch && <p className="text-red-500 mt-4">No matches found.</p>}
       </div>
-      <ul className="mt-8">
-        {posts.map((post) => (
-          <li key={post._id} className="mb-4 p-4 border rounded">
-            {post.propertyName} - {post.category} - {post.subCategory}
-          </li>
-        ))}
-      </ul>
+      {posts.length > 0 && (
+        <ul className="mt-8">
+          {posts.map((post) => (
+            <li key={post._id} className="mb-4 p-4 border rounded">
+              name: {post.propertyName} - category: {post.category} - subCategory:{' '}
+              {post.subCategory} - maxGuests: {post.maxGuests}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };
 
 export default SearchPage;
+
